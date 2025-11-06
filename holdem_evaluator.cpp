@@ -7,6 +7,13 @@
 #include <optional>
 #include <unordered_map>
 
+constexpr int MAX_RANK = 14;
+constexpr int MIN_RANK = 2;
+constexpr int QUADS_COUNT = 4;
+constexpr int TRIPS_COUNT = 3;
+constexpr int PAIR_COUNT = 2;
+constexpr int STRAIGHT_LEN = 5;
+
 enum Suit { c, d, h, s };
 
 char suitToChar(Suit s)
@@ -23,19 +30,35 @@ char suitToChar(Suit s)
 
 char rankToChar(int rank)
 {
-    if (rank >= 2 && rank <= 9)
+    if (rank >= MIN_RANK && rank <= 9)
     {
         return static_cast<char>('0' + rank);
     }
     switch (rank)
     {
-        case 14: return 'A';
+        case MAX_RANK: return 'A';
         case 13: return 'K';
         case 12: return 'Q';
         case 11: return 'J';
         case 10: return 'T';
     }
     return '?';
+}
+
+std::string rankToType(int rank)
+{
+    switch (rank) {
+        case 0: return "High Card";
+        case 1: return "Pair";
+        case 2: return "Two Pair";
+        case 3: return "Trips";
+        case 4: return "Straight";
+        case 5: return "Flush";
+        case 6: return "Full House";
+        case 7: return "Quads";
+        case 8: return "Straight Flush";
+    }
+    return "Invalid type";
 }
 
 struct Card
@@ -47,15 +70,15 @@ struct Card
 enum HandType
 {
     unassigned = -1,
-    high_card = 0,
+    highCard = 0,
     pair = 1,
-    two_pair = 2,
+    twoPair = 2,
     trips = 3,
     straight = 4,
     flush = 5,
-    full_house = 6,
+    fullHouse = 6,
     quads = 7,
-    straight_flush = 8
+    straightFlush = 8
 };
 
 struct HandValue
@@ -123,21 +146,21 @@ void pairTrack(const std::vector<Card>& hand,
 {
     pairCount.clear();
     orderedKickers.clear();
-    std::array<int, 16> rankCount{};
+    std::array<int, 15> rankCount{};
     for (const auto& card: hand)
     {
         rankCount[card.rank] += 1;
     }
-    for (int r = 14; r >= 2; --r)
+    for (int r = MAX_RANK; r >= MIN_RANK; --r)
     {
         if (rankCount[r] == 1)
         {
             orderedKickers.push_back(r);
         }
     }
-    for (std::size_t i = 2; i <= 14; ++i)
+    for (std::size_t i = MIN_RANK; i <= MAX_RANK; ++i)
     {
-        if (rankCount[i] >= 2)
+        if (rankCount[i] >= PAIR_COUNT)
         {
             pairCount.push_back({ rankCount[i], i });
         }
@@ -160,7 +183,7 @@ std::optional<HandValue> isStraightFlush(const std::vector<Card>& hand,
     }
     for (auto& element : flushMap)
     {
-        if (element.second.size() >= 5)
+        if (element.second.size() >= STRAIGHT_LEN)
         {
             std::sort(element.second.begin(), element.second.end());
             int straightCount = 1;
@@ -168,7 +191,8 @@ std::optional<HandValue> isStraightFlush(const std::vector<Card>& hand,
                  std::next(it) != element.second.end();
                  ++it)
             {
-                if (*it + 1 == *std::next(it))
+                int nextVal = *std::next(it);
+                if (*it + 1 == nextVal)
                 {
                     ++straightCount;
                 }
@@ -176,13 +200,13 @@ std::optional<HandValue> isStraightFlush(const std::vector<Card>& hand,
                 {
                     straightCount = 1;
                 }
-                if (straightCount == 5 ||
-                    (straightCount == 4 &&
-                     *std::next(it) == 5 &&
-                     element.second.back() == 14))
+                if (straightCount == STRAIGHT_LEN ||
+                    (straightCount == STRAIGHT_LEN - 1 &&
+                     nextVal == 5 &&
+                     element.second.back() == MAX_RANK))
                 {
-                    returnValue.type = straight_flush;
-                    returnValue.ranks[0] = *std::next(it);
+                    returnValue.type = straightFlush;
+                    returnValue.ranks[0] = nextVal;
                     return returnValue;
                 }
             }
@@ -200,7 +224,7 @@ std::optional<HandValue> isQuads(
                             const std::vector<int>& orderedKickers)
 {
     HandValue returnValue{};
-    if (pairCount.empty() || pairCount[0].first < 4)
+    if (pairCount.empty() || pairCount[0].first < QUADS_COUNT)
     {
         return std::nullopt;
     }
@@ -221,12 +245,12 @@ std::optional<HandValue> isFullHouse(
                             const std::vector<std::pair<int, int>>& pairCount,
                             const std::vector<int>& orderedKickers)
 {
-    if (pairCount.size() < 2 || pairCount[0].first != 3)
+    if (pairCount.size() < 2 || pairCount[0].first != TRIPS_COUNT)
     {
         return std::nullopt;
     }
     HandValue returnValue{};
-    returnValue.type = full_house;
+    returnValue.type = fullHouse;
     returnValue.ranks[0] = pairCount[0].second;
     if (pairCount.size() == 2)
     {
@@ -251,21 +275,22 @@ std::optional<HandValue> isStraight(std::vector<Card>& hand)
          std::next(it) != hand.end();
          ++it)
     {
-        if (it->rank + 1 == std::next(it)->rank)
+        int nextVal = std::next(it)->rank;
+        if (it->rank + 1 == nextVal)
         {
             ++straightCount;
         }
-        else if (it->rank + 1 < std::next(it)->rank)
+        else if (it->rank + 1 < nextVal)
         {
             straightCount = 1;
         }
-        if (straightCount == 5 ||
-            (straightCount == 4 &&
-             std::next(it)->rank == 5 &&
-             hand.back().rank == 14))
+        if (straightCount == STRAIGHT_LEN ||
+            (straightCount == STRAIGHT_LEN - 1 &&
+             nextVal == 5 &&
+             hand.back().rank == MAX_RANK))
         {
             returnValue.type = straight;
-            returnValue.ranks[0] = std::next(it)->rank;
+            returnValue.ranks[0] = nextVal;
             return returnValue;
         }
     }
@@ -276,7 +301,7 @@ std::optional<HandValue> isTrips(
                             const std::vector<std::pair<int, int>>& pairCount,
                             const std::vector<int>& orderedKickers)
 {
-    if (pairCount.empty() || pairCount[0].first < 3)
+    if (pairCount.empty() || pairCount[0].first < TRIPS_COUNT)
     {
         return std::nullopt;
     }
@@ -292,12 +317,12 @@ std::optional<HandValue> isTwoPair(
                             const std::vector<std::pair<int, int>>& pairCount,
                             const std::vector<int>& orderedKickers)
 {
-    if (pairCount.size() < 2 || pairCount[1].first < 2)
+    if (pairCount.size() < 2 || pairCount[1].first < PAIR_COUNT)
     {
         return std::nullopt;
     }
     HandValue returnValue{};
-    returnValue.type = two_pair;
+    returnValue.type = twoPair;
     returnValue.ranks[0] = pairCount[0].second;
     returnValue.ranks[1] = pairCount[1].second;
     returnValue.ranks[2] = orderedKickers[0];
@@ -322,7 +347,7 @@ std::optional<HandValue> isPair(
     return returnValue;
 }
 
-HandValue evaluateHand(std::vector<Card> board, std::vector<Card>& hand)
+HandValue evaluateHand(const std::vector<Card>& board, std::vector<Card>& hand)
 {
     hand.insert(hand.end(), board.begin(), board.end());
     HandValue handValue{};
@@ -363,7 +388,7 @@ HandValue evaluateHand(std::vector<Card> board, std::vector<Card>& hand)
     {
         return result.value();
     }
-    handValue.type = high_card;
+    handValue.type = highCard;
     std::copy_n(orderedKickers.begin(), 5, handValue.ranks.begin());
     return handValue;
 }
@@ -403,22 +428,25 @@ std::vector<HandValue> compareHands(std::vector<HandValue> hands)
     return candidates;
 }
 
-void printGame(std::vector<std::vector<Card>> playerList,
-               std::vector<HandValue> playerValues,
-               std::vector<Card> board)
+void printGame(const std::vector<std::vector<Card>>& playerList,
+               const std::vector<HandValue>& playerValues,
+               const std::vector<Card>& board)
 {
-    std::vector<HandValue> vec = compareHands(playerValues);
-    for (auto num : vec)
+    std::vector<HandValue> winners = compareHands(playerValues);
+    for (auto num : winners)
     {
-        std::cout << num.type << "\t" << num.index << std::endl;
+        std::cout << "Winning hand type: " << rankToType(num.type) <<
+        "\t Winning hand index: " << num.index << std::endl;
     }
+    std::cout << "Board: ";
     printCards(board);
-    std::cout << std::endl;
+    std::cout << std::endl << "Players: ";
     for (auto player : playerList)
     {
         printCards(player);
         std::cout << "\t";
     }
+    std::cout << std::endl;
 }
 
 int main(int argc, const char * argv[]) {
@@ -432,37 +460,43 @@ int main(int argc, const char * argv[]) {
     std::vector<Card> playerTwo;
     deck.deal(playerTwo, 2);
     
+    std::vector<Card> playerThree;
+    deck.deal(playerThree, 2);
+    
+    std::vector<Card> playerFour;
+    deck.deal(playerFour, 2);
+    
+    std::vector<Card> playerFive;
+    deck.deal(playerFive, 2);
+    
+    std::vector<Card> playerSix;
+    deck.deal(playerSix, 2);
+    
+    std::vector<Card> playerSeven;
+    deck.deal(playerSeven, 2);
+    
     std::vector<Card> board;
     deck.deal(board, 5);
     
     std::vector<std::vector<Card>> playerList{};
     playerList.push_back(playerOne);
     playerList.push_back(playerTwo);
+    playerList.push_back(playerThree);
+    playerList.push_back(playerFour);
+    playerList.push_back(playerFive);
+    playerList.push_back(playerSix);
+    playerList.push_back(playerSeven);
+    
     std::vector<HandValue> playerValues{};
     playerValues.push_back(evaluateHand(board, playerOne));
     playerValues.push_back(evaluateHand(board, playerTwo));
-    
+    playerValues.push_back(evaluateHand(board, playerThree));
+    playerValues.push_back(evaluateHand(board, playerFour));
+    playerValues.push_back(evaluateHand(board, playerFive));
+    playerValues.push_back(evaluateHand(board, playerSix));
+    playerValues.push_back(evaluateHand(board, playerSeven));
+
     printGame(playerList, playerValues, board);
-    
-//    std::vector<Card> testBoard;
-//    testBoard.push_back({14, d});
-//    testBoard.push_back({14, s});
-//    testBoard.push_back({4, h});
-//    testBoard.push_back({7, h});
-//    testBoard.push_back({4, c});
-//    std::vector<Card> testOne;
-//    testOne.push_back({8, s});
-//    testOne.push_back({5, s});
-//    std::vector<Card> testTwo;
-//    testTwo.push_back({6, d});
-//    testTwo.push_back({12, c});
-//    std::vector<std::vector<Card>> testList{};
-//    testList.push_back(testOne);
-//    testList.push_back(testTwo);
-//    std::vector<HandValue> testValues{};
-//    testValues.push_back(evaluateHand(testBoard, testOne));
-//    testValues.push_back(evaluateHand(testBoard, testTwo));
-//    printGame(testList, testValues, testBoard);
     
     return 0;
 }
